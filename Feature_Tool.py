@@ -11,7 +11,7 @@ from stanford_parser import parser;
 import re;
 from bs4 import BeautifulSoup;
 from Word_Tokenize import tokenizer;
-from nltk.tag.stanford import POSTagger;
+from nltk.tag.stanford import POSTagger,NERTagger;
 from nltk.stem.porter import PorterStemmer;
 import csv;
 
@@ -245,15 +245,70 @@ class Feature_Tool:
             w.write('\n');
         return opinion_dict;
 
+    #get NER feature
+    def add_ner(self,target):
+        all_token = self.get_token(target);
+        st = \
+        NERTagger('../stanford-ner-2015-04-20/classifiers/english.all.3class.distsim.crf.ser.gz','../stanford-ner-2015-04-20/stanford-ner.jar');
+        ner_result = st.tag_sents(all_token);
+        w = open('ner_%s'%target,'wb');
+        for num,row in enumerate(ner_result):
+            for item in row:
+                w.write(item[0]+'\n');
+            w.write('\n');
+        #end for 
+        print len(ner_result),len(all_token);
+        return;
+        
+    #get full feature for one sentence
+    def get_whole(self,sentence):
+        opinion_dict = dict();
+        pos_f = open('../opinion-lexicon-English/positive-words.txt','rb');
+        neg_f = open('../opinion-lexicon-English/negative-words.txt','rb');
+        for _ in xrange(35):
+            pos_f.readline();
+            neg_f.readline();
+        for word in pos_f:
+            opinion_dict[word.strip()]=True;
+        for word in neg_f:
+            opinion_dict[word.strip()]=False;
+        pos_f.close();
+        neg_f.close();
+        stemmer = PorterStemmer();
+        stanford_parser = parser.Parser();
+        stanford_tagger = \
+        POSTagger('../stanford-postagger-full-2015-01-30/models/english-bidirectional-distsim.tagger','../stanford-postagger-full-2015-01-30/stanford-postagger.jar');
+        w = open('sentence_test','wb');
+        text_token = self.tf.stanford_tokenize(sentence);
+        text_pos = stanford_tagger.tag(text_token);
+        print text_pos;
+        text_dependency = stanford_parser.parseToStanfordDependencies(sentence);
+        temp_list = ['none']*len(text_token);
+        for dep in text_dependency:
+            if dep[0] == 'amod':
+                temp_list[int(dep[1])]='%s_1'%dep[0];
+                temp_list[int(dep[2])]='%s_2'%dep[0];
+        #end for
+        for num,item in enumerate(text_pos[0]):
+            temp_str = 'order';
+            if opinion_dict.has_key(item[0]):
+                temp_str = 'opion';
+            featrue_list=[item[0],item[1],stemmer.stem(item[0]),item[0].lower(),\
+                          temp_str,temp_list[num],'O'];
+            w.write(' '.join(featrue_list)+'\n');
+        pass;
+
 if __name__ == '__main__':
     ft = Feature_Tool();
     train_file = '../Restaurants_Train_v2.xml';
     test_file = '../ABSA_TestData_PhaseB/Restaurants_Test_Data_phaseB.xml';
-    target = 'train'
+    target = 'train';
     #ft.get_row(train_file,target);
     #ft.add_POS(test_file,target);
     #ft.add_Stem(train_file,target);
     #ft.add_opinion(target);
     #ft.add_opinion('test');
-    ft.add_dependency('test');
-    ft.add_dependency('train');
+    #ft.add_dependency('test');
+    #ft.add_dependency('train');
+    #ft.add_ner(target);
+    ft.get_whole('Creamy appetizers--taramasalata, eggplant salad, and Greek yogurt (with cuccumber, dill, and garlic) taste excellent when on warm pitas.');
